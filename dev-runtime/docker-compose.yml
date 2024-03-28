@@ -1,0 +1,59 @@
+version: '3.4'
+
+services:
+  postgresql:
+    image: postgres:latest
+    container_name: postgresql
+    networks:
+      - sag
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres-volume:/var/lib/postgresql/data
+
+  umserver:
+    image: softwareag/universalmessaging-server:10.15
+    container_name: umserver
+    networks:
+      - sag
+    ports:
+      - "9000:9000"
+      - "9200:9200"
+    volumes:
+      - um-data-volume:/opt/softwareag/UniversalMessaging/server/umserver/data
+      - um-conf-volume:/opt/softwareag/common/conf
+      - ./license/um-license.xml:/opt/softwareag/UniversalMessaging/server/umserver/licence/licence.xml:ro
+    healthcheck:
+      interval: 5s
+      retries: 12
+      test: ["CMD-SHELL", "curl --silent http://localhost:9000/health/ | grep -q '\"ServerStatus\":\"OK\"'"]
+
+  msr:
+    container_name: msr
+    image: staillansag/webmethods-edge-runtime:11.0.0.2-jdbc-streaming
+    depends_on:
+      - umserver
+      - postgresql
+    networks:
+      - sag
+    ports:
+      - "15555:5555"
+    env_file:
+      - .env
+    volumes:
+      - ./license/msr-license.xml:/opt/softwareag/IntegrationServer/config/licenseKey.xml:ro
+      - ./application.properties:/opt/softwareag/IntegrationServer/application.properties
+      - packages-volume:/opt/softwareag/IntegrationServer/packages
+      - ~/git:/git
+
+networks:
+  sag:
+
+volumes:
+  um-data-volume:
+  um-conf-volume:
+  packages-volume:
+  postgres-volume:
